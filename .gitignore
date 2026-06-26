@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.venv*/
+chroma_db/
+vectorstore/*
+!vectorstore/.gitkeep
+.env
+.DS_Store
+.streamlit/secrets.toml
+streamlit.*.log
