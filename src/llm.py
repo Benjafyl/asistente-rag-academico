@@ -10,6 +10,18 @@ NO_CONTEXT_MESSAGE = (
 )
 
 
+def fallback_answer(chunks: list[RetrievedChunk]) -> str:
+    context_preview = " ".join(chunk.text.replace("\n", " ") for chunk in chunks[:2])
+    sentences = [part.strip() for part in context_preview.split(".") if part.strip()]
+    summary = ". ".join(sentences[:3]).strip()
+    if not summary:
+        return NO_CONTEXT_MESSAGE
+    return (
+        "Ollama tardo demasiado en generar la respuesta. "
+        f"Segun los fragmentos recuperados: {summary}."
+    )
+
+
 def build_prompt(question: str, chunks: list[RetrievedChunk]) -> str:
     context = "\n\n".join(
         f"Fuente: {chunk.source} | Fragmento: {chunk.chunk}\n{chunk.text}"
@@ -18,6 +30,7 @@ def build_prompt(question: str, chunks: list[RetrievedChunk]) -> str:
     return f"""
 Eres un asistente academico universitario.
 Responde exclusivamente con la informacion del CONTEXTO.
+Responde en maximo 6 lineas, de forma directa y sin agregar informacion externa.
 Si el CONTEXTO no contiene la respuesta, responde exactamente:
 "{NO_CONTEXT_MESSAGE}"
 
@@ -39,16 +52,18 @@ def generate_answer(question: str, chunks: list[RetrievedChunk]) -> str:
         "model": OLLAMA_MODEL,
         "prompt": build_prompt(question, chunks),
         "stream": False,
-        "options": {"temperature": 0.1, "num_ctx": 4096},
+        "options": {"temperature": 0.1, "num_ctx": 2048, "num_predict": 180},
     }
 
     try:
         response = requests.post(
             f"{OLLAMA_BASE_URL}/api/generate",
             json=payload,
-            timeout=120,
+            timeout=35,
         )
         response.raise_for_status()
+    except requests.Timeout:
+        return fallback_answer(chunks)
     except requests.RequestException as exc:
         return (
             "No fue posible conectar con Ollama. Verifica que el servicio este "
